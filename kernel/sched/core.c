@@ -3960,6 +3960,8 @@ change:
 	 */
 	if ((dl_policy(policy) || dl_task(p)) && dl_overflow(p, policy, attr)) {
 		task_rq_unlock(rq, p, &flags);
+		printk_deferred("%s:%d:process %d (%s): EBUSY\n",
+				__FILE__, __LINE__, task_pid_nr(p), p->comm);
 		return -EBUSY;
 	}
 
@@ -4454,6 +4456,8 @@ long sched_setaffinity(pid_t pid, const struct cpumask *in_mask)
 	if (task_has_dl_policy(p) && dl_bandwidth_enabled()) {
 		rcu_read_lock();
 		if (!cpumask_subset(task_rq(p)->rd->span, new_mask)) {
+		        printk_deferred("%s:%d:process %d (%s): EBUSY\n",
+				  __FILE__, __LINE__, task_pid_nr(p), p->comm);
 			retval = -EBUSY;
 			rcu_read_unlock();
 			goto out_free_new_mask;
@@ -5097,9 +5101,11 @@ int task_can_attach(struct task_struct *p,
 		raw_spin_lock_irqsave(&dl_b->lock, flags);
 		cpus = dl_bw_cpus(dest_cpu);
 		overflow = __dl_overflow(dl_b, cpus, 0, p->dl.dl_bw);
-		if (overflow)
+		if (overflow) {
+		        printk_deferred("%s:%d:process %d (%s): EBUSY\n",
+				  __FILE__, __LINE__, task_pid_nr(p), p->comm);
 			ret = -EBUSY;
-		else {
+		} else {
 			/*
 			 * We reserve space for this task in the destination
 			 * root_domain, as we can't fail after this point.
@@ -7284,8 +7290,11 @@ static int cpuset_cpu_inactive(struct notifier_block *nfb, unsigned long action,
 
 		rcu_read_unlock_sched();
 
-		if (overflow)
+		if (overflow) {
+		        printk_deferred("%s:%d: EBUSY\n",
+				  __FILE__, __LINE__);
 			return notifier_from_errno(-EBUSY);
+		}
 		cpuset_update_active_cpus(false);
 		break;
 	case CPU_DOWN_PREPARE_FROZEN:
@@ -7869,8 +7878,11 @@ static int tg_rt_schedulable(struct task_group *tg, void *data)
 	/*
 	 * Ensure we don't starve existing RT tasks.
 	 */
-	if (rt_bandwidth_enabled() && !runtime && tg_has_rt_tasks(tg))
+	if (rt_bandwidth_enabled() && !runtime && tg_has_rt_tasks(tg)) {
+	        printk_deferred("%s:%d:EBUSY\n",
+			  __FILE__, __LINE__);
 		return -EBUSY;
+	}
 
 	total = to_ratio(period, runtime);
 
@@ -8069,8 +8081,11 @@ static int sched_dl_global_validate(void)
 		dl_b = dl_bw_of(cpu);
 
 		raw_spin_lock_irqsave(&dl_b->lock, flags);
-		if (new_bw < dl_b->total_bw)
+		if (new_bw < dl_b->total_bw) {
+		        printk_deferred("%s:%d:EBUSY\n",
+				  __FILE__, __LINE__);
 			ret = -EBUSY;
+		}
 		raw_spin_unlock_irqrestore(&dl_b->lock, flags);
 
 		rcu_read_unlock_sched();
