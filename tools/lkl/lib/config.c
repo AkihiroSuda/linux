@@ -462,188 +462,6 @@ static void mount_cmds_exec(char *_cmds, int (*callback)(char *))
 	free(cmds);
 }
 
-static int lkl_config_netdev_create(struct lkl_config *cfg,
-				    struct lkl_config_iface *iface)
-{
-	int ret, offload = 0;
-	struct lkl_netdev_args nd_args;
-	__lkl__u8 mac[LKL_ETH_ALEN] = {0};
-	struct lkl_netdev *nd = NULL;
-
-	if (iface->ifoffload_str)
-		offload = strtol(iface->ifoffload_str, NULL, 0);
-	memset(&nd_args, 0, sizeof(struct lkl_netdev_args));
-
-	if (iface->iftap) {
-		lkl_printf("WARN: LKL_HIJACK_NET_TAP is now obsoleted.\n");
-		lkl_printf("use LKL_HIJACK_NET_IFTYPE and PARAMS\n");
-		nd = lkl_netdev_tap_create(iface->iftap, offload);
-	}
-
-	if (!nd && iface->iftype && iface->ifparams) {
-		if ((strcmp(iface->iftype, "tap") == 0)) {
-			nd = lkl_netdev_tap_create(iface->ifparams, offload);
-		} else if ((strcmp(iface->iftype, "macvtap") == 0)) {
-			nd = lkl_netdev_macvtap_create(iface->ifparams,
-						       offload);
-		} else if ((strcmp(iface->iftype, "dpdk") == 0)) {
-			nd = lkl_netdev_dpdk_create(iface->ifparams, offload,
-						    mac);
-		} else if ((strcmp(iface->iftype, "pipe") == 0)) {
-			nd = lkl_netdev_pipe_create(iface->ifparams, offload);
-		} else {
-			if (offload) {
-				lkl_printf("WARN: %s isn't supported on %s\n",
-					   "LKL_HIJACK_OFFLOAD",
-					   iface->iftype);
-				lkl_printf(
-					"WARN: Disabling offload features.\n");
-			}
-			offload = 0;
-		}
-		if (strcmp(iface->iftype, "vde") == 0)
-			nd = lkl_netdev_vde_create(iface->ifparams);
-		if (strcmp(iface->iftype, "raw") == 0)
-			nd = lkl_netdev_raw_create(iface->ifparams);
-	}
-
-	if (nd) {
-		if ((mac[0] != 0) || (mac[1] != 0) ||
-				(mac[2] != 0) || (mac[3] != 0) ||
-				(mac[4] != 0) || (mac[5] != 0)) {
-			nd_args.mac = mac;
-		} else {
-			ret = parse_mac_str(iface->ifmac_str, mac);
-
-			if (ret < 0) {
-				lkl_printf("failed to parse mac\n");
-				return -1;
-			} else if (ret > 0) {
-				nd_args.mac = mac;
-			} else {
-				nd_args.mac = NULL;
-			}
-		}
-
-		nd_args.offload = offload;
-		ret = lkl_netdev_add(nd, &nd_args);
-		if (ret < 0) {
-			lkl_printf("failed to add netdev: %s\n",
-				   lkl_strerror(ret));
-			return -1;
-		}
-		nd->id = ret;
-		iface->nd = nd;
-	}
-	return 0;
-}
-
-static int lkl_config_netdev_configure(struct lkl_config *cfg,
-				       struct lkl_config_iface *iface)
-{
-	int ret, nd_ifindex = -1;
-	struct lkl_netdev *nd = iface->nd;
-
-	if (!nd) {
-		lkl_printf("no netdev available %s\n", iface ? iface->ifparams
-			   : "(null)");
-		return -1;
-	}
-
-	if (nd->id >= 0) {
-		nd_ifindex = lkl_netdev_get_ifindex(nd->id);
-		if (nd_ifindex > 0)
-			lkl_if_up(nd_ifindex);
-		else
-			lkl_printf(
-				"failed to get ifindex for netdev id %d: %s\n",
-				nd->id, lkl_strerror(nd_ifindex));
-	}
-
-	if (nd_ifindex >= 0 && iface->ifmtu_str) {
-		int mtu = atoi(iface->ifmtu_str);
-
-		ret = lkl_if_set_mtu(nd_ifindex, mtu);
-		if (ret < 0)
-			lkl_printf("failed to set MTU: %s\n",
-				   lkl_strerror(ret));
-	}
-
-	if (nd_ifindex >= 0 && iface->ifip && iface->ifnetmask_len) {
-		unsigned int addr;
-
-		if (inet_pton(LKL_AF_INET, iface->ifip,
-			      (struct lkl_in_addr *)&addr) != 1)
-			lkl_printf("Invalid ipv4 address: %s\n", iface->ifip);
-
-		int nmlen = atoi(iface->ifnetmask_len);
-
-		if (addr != LKL_INADDR_NONE && nmlen > 0 && nmlen < 32) {
-			ret = lkl_if_set_ipv4(nd_ifindex, addr, nmlen);
-			if (ret < 0)
-				lkl_printf("failed to set IPv4 address: %s\n",
-					   lkl_strerror(ret));
-		}
-		if (iface->ifgateway) {
-			unsigned int gwaddr;
-
-			if (inet_pton(LKL_AF_INET, iface->ifgateway,
-				      (struct lkl_in_addr *)&gwaddr) != 1)
-				lkl_printf("Invalid ipv4 gateway: %s\n",
-					   iface->ifgateway);
-
-			if (gwaddr != LKL_INADDR_NONE) {
-				ret = lkl_if_set_ipv4_gateway(nd_ifindex,
-						addr, nmlen, gwaddr);
-				if (ret < 0)
-					lkl_printf(
-						"failed to set v4 if gw: %s\n",
-						lkl_strerror(ret));
-			}
-		}
-	}
-
-	if (nd_ifindex >= 0 && iface->ifipv6 &&
-			iface->ifnetmask6_len) {
-		struct lkl_in6_addr addr;
-		unsigned int pflen = atoi(iface->ifnetmask6_len);
-
-		if (inet_pton(LKL_AF_INET6, iface->ifipv6,
-			      (struct lkl_in6_addr *)&addr) != 1) {
-			lkl_printf("Invalid ipv6 addr: %s\n",
-				   iface->ifipv6);
-		}  else {
-			ret = lkl_if_set_ipv6(nd_ifindex, &addr, pflen);
-			if (ret < 0)
-				lkl_printf("failed to set IPv6 address: %s\n",
-					   lkl_strerror(ret));
-		}
-		if (iface->ifgateway6) {
-			char gwaddr[16];
-
-			if (inet_pton(LKL_AF_INET6, iface->ifgateway6,
-								gwaddr) != 1) {
-				lkl_printf("Invalid ipv6 gateway: %s\n",
-					   iface->ifgateway6);
-			} else {
-				ret = lkl_if_set_ipv6_gateway(nd_ifindex,
-						&addr, pflen, gwaddr);
-				if (ret < 0)
-					lkl_printf(
-						"failed to set v6 if gw: %s\n",
-						lkl_strerror(ret));
-			}
-		}
-	}
-
-	if (nd_ifindex >= 0 && iface->ifneigh_entries)
-		add_neighbor(nd_ifindex, iface->ifneigh_entries);
-
-	if (nd_ifindex >= 0 && iface->ifqdisc_entries)
-		lkl_qdisc_parse_add(nd_ifindex, iface->ifqdisc_entries);
-
-	return 0;
-}
 
 static void free_cfgparam(char *cfgparam)
 {
@@ -701,13 +519,7 @@ int lkl_load_config_pre(struct lkl_config *cfg)
 	if (!cfg->debug || (lkl_debug == 0))
 		lkl_host_ops.print = NULL;
 
-	for (iface = cfg->ifaces; iface; iface = iface->next) {
-		ret = lkl_config_netdev_create(cfg, iface);
-		if (ret < 0)
-			return -1;
-	}
-
-	return 0;
+		return 0;
 }
 
 int lkl_load_config_post(struct lkl_config *cfg)
@@ -720,12 +532,6 @@ int lkl_load_config_post(struct lkl_config *cfg)
 
 	if (cfg->mount)
 		mount_cmds_exec(cfg->mount, lkl_mount_fs);
-
-	for (iface = cfg->ifaces; iface; iface = iface->next) {
-		ret = lkl_config_netdev_configure(cfg, iface);
-		if (ret < 0)
-			break;
-	}
 
 	if (cfg->gateway) {
 		unsigned int gwaddr;
@@ -781,15 +587,7 @@ int lkl_unload_config(struct lkl_config *cfg)
 	if (cfg) {
 		if (cfg->dump)
 			mount_cmds_exec(cfg->dump, dump_file);
-
-		for (iface = cfg->ifaces; iface; iface = iface->next) {
-			if (iface->nd) {
-				if (iface->nd->id >= 0)
-					lkl_netdev_remove(iface->nd->id);
-				lkl_netdev_free(iface->nd);
-			}
-		}
-
+		
 		lkl_clean_config(cfg);
 	}
 

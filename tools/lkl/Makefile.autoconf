@@ -52,23 +52,21 @@ define virtio_net_vde
   LDLIBS += $(shell pkg-config --libs vdeplug)
 endef
 
+# FIXME: specific to Haiku and /home/suda prefix
+# compile: `CROSS_COMPILE=/home/suda/haiku/haiku/generated.x86_64/cross-tools-x86_64/bin/x86_64-unknown-haiku- make `
+# NOTE: the following files needs to be copied into this (tools/lkl) dir for some reason
+# /home/suda/haiku/haiku/generated.x86_64/objects/haiku/x86_64/release/system/glue/*.o
+# /home/suda/haiku/haiku/generated.x86_64/objects/haiku/x86_64/release/system/glue/arch/x86_64/*.o
 define posix_host
   $(call set_autoconf_var,POSIX,y)
-  $(call set_autoconf_var,VIRTIO_NET,y)
+  $(call set_autoconf_var,VIRTIO_NET,n)
   LDFLAGS += -pie
-  CFLAGS += -fPIC -pthread
+  CFLAGS += -fPIC
+  CFLAGS += -I/home/suda/haiku/haiku/headers/posix -I/home/suda/haiku/haiku/headers -I/home/suda/haiku/haiku/headers/os -I/home/suda/haiku/haiku/headers/os/support
+  LDFLAGS += -L/home/suda/haiku/haiku/generated.x86_64/objects/haiku/x86_64/release/system/libroot
+  LDFLAGS += -L/home/suda/haiku/haiku/generated.x86_64/objects/haiku/x86_64/release/system/libnetwork -lnetwork
+
   SOSUF := .so
-  $(if $(call is_defined,__ANDROID__),$(call android_host),LDLIBS += -lrt -lpthread)
-  $(if $(filter $(1),elf64-x86-64-freebsd),$(call bsd_host))
-  $(if $(filter $(1),elf32-littlearm),$(call arm_host))
-  $(if $(filter $(1),elf64-littleaarch64),$(call aarch64_host))
-  $(if $(filter yes,$(dpdk)),$(call virtio_net_dpdk))
-  $(if $(filter yes,$(vde)),$(call virtio_net_vde))
-  $(if $(strip $(call find_include,fuse.h)),$(call set_autoconf_var,FUSE,y))
-  $(if $(strip $(call find_include,archive.h)),$(call set_autoconf_var,ARCHIVE,y))
-  $(if $(strip $(call find_include,linux/if_tun.h)),$(call set_autoconf_var,VIRTIO_NET_MACVTAP,y))
-  $(if $(filter $(1),elf64-x86-64-freebsd),$(call set_autoconf_var,NEEDS_LARGP,y))
-  $(if $(filter $(1),elf32-i386),$(call set_autoconf_var,I386,y))
 endef
 
 define nt64_host

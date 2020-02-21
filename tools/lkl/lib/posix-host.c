@@ -12,7 +12,6 @@
 #include <sys/uio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <sys/syscall.h>
 #include <poll.h>
 #include <lkl_host.h>
 #include "iomem.h"
@@ -304,11 +303,7 @@ static void panic(void)
 
 static long _gettid(void)
 {
-#ifdef	__FreeBSD__
 	return (long)pthread_self();
-#else
-	return syscall(SYS_gettid);
-#endif
 }
 
 struct lkl_host_operations lkl_host_ops = {
