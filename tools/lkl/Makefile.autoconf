@@ -169,7 +169,7 @@ define do_autoconf_llvm
   $(eval LD_FMT := $(call llvm_target_to_ld_fmt))
 endef
 
-define do_autoconf
+define do_autoconf_native
   $(if $(LLVM),$(call do_autoconf_llvm),$(call do_autoconf_gnu))
   $(eval EXEC_FMT := $(shell echo $(LD_FMT) | cut -d "-" -f1))
   $(call set_kernel_config,OUTPUT_FORMAT,\"$(LD_FMT)\")
@@ -178,6 +178,19 @@ define do_autoconf
   $(if $(filter $(EXEC_FMT),$(POSIX_HOSTS)),$(call posix_host,$(LD_FMT)))
   $(if $(filter $(EXEC_FMT),$(NT_HOSTS)),$(call nt_host,$(LD_FMT)))
   $(if $(and $(filter yes,$(kasan)),$(filter $(LD_FMT),$(KASAN_HOSTS))),$(call kasan_enable,$(LD_FMT)))
+endef
+
+define do_autoconf_wasm
+  export LLVM := $(CURDIR)/bin/wasm/
+  export CROSS_COMPILE := wasm32-unknown-emscripten
+  $(call set_autoconf_var,POSIX,y)
+  $(call set_kernel_config,XFS_FS,n)
+  $(call set_kernel_config,KALLSYMS,n)
+  $(call set_kernel_config,OUTPUT_FORMAT,\"wasm\")
+endef
+
+define do_autoconf
+  $(if $(WASM),$(call do_autoconf_wasm),$(call do_autoconf_native))
 endef
 
 export do_autoconf

@@ -13,6 +13,16 @@ __SYSCALL(__NR_virtio_mmio_device_add, sys_virtio_mmio_device_add)
 #define __ASCII_MAP6(m,t,a,...) m(t,a) "," __ASCII_MAP5(m,__VA_ARGS__)
 #define __ASCII_MAP(n,...) __ASCII_MAP##n(__VA_ARGS__)
 
+#ifdef __WASM__
+
+/* No support for section? */
+#define __SYSCALL_DEFINE_ARCH(x, name, ...)				\
+	asm( ".ascii \"#ifdef __NR" #name "\\n\"\n"			\
+	    ".ascii \"SYSCALL_DEFINE" #x "(" #name ","			\
+	    __ASCII_MAP(x, __SC_ASCII, __VA_ARGS__) ")\\n\"\n"		\
+	    ".ascii \"#endif\\n\"\n");
+
+#else
 #ifdef __MINGW32__
 #define SECTION_ATTRS "n0"
 #else
@@ -26,3 +36,5 @@ __SYSCALL(__NR_virtio_mmio_device_add, sys_virtio_mmio_device_add)
 	    __ASCII_MAP(x, __SC_ASCII, __VA_ARGS__) ")\\n\"\n"		\
 	    ".ascii \"#endif\\n\"\n"					\
 	    ".section .text\n");
+
+#endif

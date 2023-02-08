@@ -1,0 +1,18 @@
+#!/bin/bash
+set -eu
+: "${WASM_LD:=wasm-ld}"
+
+wasm_ld_args=
+for f; do
+  case "${f}" in
+    "--build-id="* | "--script="* | "--start-group" | "--end-group")
+      echo >&2 "Ignoring ${f}"
+      ;;
+    *)
+      wasm_ld_args="${wasm_ld_args} ${f}"
+      ;;
+  esac
+done
+# shellcheck disable=SC2086
+set -- ${wasm_ld_args}
+exec "${WASM_LD}" "${@}"

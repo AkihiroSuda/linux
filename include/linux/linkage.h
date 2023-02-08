@@ -23,10 +23,14 @@
 #endif
 
 #ifndef cond_syscall
+#ifdef __WASM__
+#define cond_syscall(x)	;
+#else
 #define cond_syscall(x)	asm(				\
 	".weak " __stringify(x) "\n\t"			\
 	".set  " __stringify(x) ","			\
 		 __stringify(sys_ni_syscall))
+#endif
 #endif
 
 #ifndef SYSCALL_ALIAS

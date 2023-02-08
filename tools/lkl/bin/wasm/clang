@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+: "${EMCC:=emcc}"
+: "${CLANG:=clang}"
+
+if echo "${@}" | grep -- --target=wasm32-unknown-emscripten ; then
+  exec "${EMCC}" -D__WASM__=1 "${@}"
+else
+  exec "${CLANG}" "${@}"
+fi
