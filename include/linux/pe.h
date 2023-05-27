@@ -27,9 +27,25 @@
  * On x86, LoadImage() and StartImage() can be omitted if the EFI handover
  * protocol is implemented, which can be inferred from the version,
  * handover_offset and xloadflags fields in the bootparams structure.
+ *
+ * Linux EFI stub v1.1 unconditionally enabled initrd command line loader,
+ * which was previously gated by CONFIG_EFI_GENERIC_STUB_INITRD_CMDLINE_LOADER.
+ *
+ * Linux EFI stub v3.0 changed the major version to be a bitfield (0b11).
+ * The rightmost bit means that it is compatible with v1.0 at least.
+ * The second rightmost bit means that initrd command line loader is enabled.
+ * So, there is no v2.0 (0b10), and the next version will be v7.0 (0b111).
  */
-#define LINUX_EFISTUB_MAJOR_VERSION		0x1
-#define LINUX_EFISTUB_MINOR_VERSION		0x1
+#define LINUX_EFISTUB_MAJOR_VERSION		0x3
+
+/*
+ * LINUX_EFISTUB_MINOR_VERSION is pinned to 0x0, because Apple's
+ * VZLinuxBootLoader cannot boot a kernel with other minor version value, even
+ * though it does not use UEFI. Tested with macOS 13.4 (x86_64).
+ *
+ * https://lore.kernel.org/linux-efi/CAG8fp8Teu4G9JuenQrqGndFt2Gy+V4YgJ=hN1xX7AD940YKf3A@mail.gmail.com/
+ */
+#define LINUX_EFISTUB_MINOR_VERSION		0x0
 
 /*
  * LINUX_PE_MAGIC appears at offset 0x38 into the MS-DOS header of EFI bootable
