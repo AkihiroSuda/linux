@@ -6,11 +6,11 @@
 #ifndef __NETNS_IPV4_H__
 #define __NETNS_IPV4_H__
 
-#include <linux/uidgid.h>
 #include <net/inet_frag.h>
 #include <linux/rcupdate.h>
 #include <linux/seqlock.h>
 #include <linux/siphash.h>
+#include <linux/group_range.h>
 
 struct ctl_table_header;
 struct ipv4_devconf;
@@ -22,11 +22,6 @@ struct local_ports {
 	seqlock_t	lock;
 	int		range[2];
 	bool		warned;
-};
-
-struct ping_group_range {
-	seqlock_t	lock;
-	kgid_t		range[2];
 };
 
 struct inet_hashinfo;
@@ -204,7 +199,7 @@ struct netns_ipv4 {
 	int sysctl_igmp_max_msf;
 	int sysctl_igmp_qrv;
 
-	struct ping_group_range ping_group_range;
+	struct group_range ping_group_range;
 
 	atomic_t dev_addr_genid;
 

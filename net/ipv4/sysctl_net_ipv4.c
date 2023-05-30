@@ -34,8 +34,6 @@ static int ip_ttl_min = 1;
 static int ip_ttl_max = 255;
 static int tcp_syn_retries_min = 1;
 static int tcp_syn_retries_max = MAX_TCP_SYNCNT;
-static int ip_ping_group_range_min[] = { 0, 0 };
-static int ip_ping_group_range_max[] = { GID_T_MAX, GID_T_MAX };
 static u32 u32_max_div_HZ = UINT_MAX / HZ;
 static int one_day_secs = 24 * 3600;
 static u32 fib_multipath_hash_fields_all_mask __maybe_unused =
@@ -133,66 +131,20 @@ static int ipv4_privileged_ports(struct ctl_table *table, int write,
 	return ret;
 }
 
-static void inet_get_ping_group_range_table(struct ctl_table *table, kgid_t *low, kgid_t *high)
+static struct group_range *ipv4_ping_group_range_func(struct ctl_table *table)
 {
-	kgid_t *data = table->data;
 	struct net *net =
 		container_of(table->data, struct net, ipv4.ping_group_range.range);
-	unsigned int seq;
-	do {
-		seq = read_seqbegin(&net->ipv4.ping_group_range.lock);
 
-		*low = data[0];
-		*high = data[1];
-	} while (read_seqretry(&net->ipv4.ping_group_range.lock, seq));
-}
-
-/* Update system visible IP port range */
-static void set_ping_group_range(struct ctl_table *table, kgid_t low, kgid_t high)
-{
-	kgid_t *data = table->data;
-	struct net *net =
-		container_of(table->data, struct net, ipv4.ping_group_range.range);
-	write_seqlock(&net->ipv4.ping_group_range.lock);
-	data[0] = low;
-	data[1] = high;
-	write_sequnlock(&net->ipv4.ping_group_range.lock);
+	return &net->ipv4.ping_group_range;
 }
 
 /* Validate changes from /proc interface. */
 static int ipv4_ping_group_range(struct ctl_table *table, int write,
 				 void *buffer, size_t *lenp, loff_t *ppos)
 {
-	struct user_namespace *user_ns = current_user_ns();
-	int ret;
-	gid_t urange[2];
-	kgid_t low, high;
-	struct ctl_table tmp = {
-		.data = &urange,
-		.maxlen = sizeof(urange),
-		.mode = table->mode,
-		.extra1 = &ip_ping_group_range_min,
-		.extra2 = &ip_ping_group_range_max,
-	};
-
-	inet_get_ping_group_range_table(table, &low, &high);
-	urange[0] = from_kgid_munged(user_ns, low);
-	urange[1] = from_kgid_munged(user_ns, high);
-	ret = proc_dointvec_minmax(&tmp, write, buffer, lenp, ppos);
-
-	if (write && ret == 0) {
-		low = make_kgid(user_ns, urange[0]);
-		high = make_kgid(user_ns, urange[1]);
-		if (!gid_valid(low) || !gid_valid(high))
-			return -EINVAL;
-		if (urange[1] < urange[0] || gid_lt(high, low)) {
-			low = make_kgid(&init_user_ns, 1);
-			high = make_kgid(&init_user_ns, 0);
-		}
-		set_ping_group_range(table, low, high);
-	}
-
-	return ret;
+	return sysctl_group_range(ipv4_ping_group_range_func, table,
+		write, buffer, lenp, ppos);
 }
 
 static int ipv4_fwd_update_priority(struct ctl_table *table, int write,
