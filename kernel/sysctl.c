@@ -80,6 +80,9 @@
 #ifdef CONFIG_RT_MUTEXES
 #include <linux/rtmutex.h>
 #endif
+#ifdef CONFIG_USER_NS
+#include <linux/group_range.h>
+#endif
 
 /* shared constants to be used in various sysctls */
 const int sysctl_vals[] = { 0, 1, 2, 3, 4, 100, 200, 1000, 3000, INT_MAX, 65535, -1 };
@@ -1615,6 +1618,24 @@ int proc_do_static_key(struct ctl_table *table, int write,
 	return ret;
 }
 
+#ifdef CONFIG_USER_NS
+static struct group_range *userns_group_range_func(struct ctl_table *table)
+{
+	struct user_namespace *user_ns =
+		container_of(table->data, struct user_namespace, group_range.range);
+
+	return &user_ns->group_range;
+}
+
+/* Validate changes from /proc interface. */
+static int userns_group_range(struct ctl_table *table, int write,
+	void *buffer, size_t *lenp, loff_t *ppos)
+{
+	return sysctl_group_range(userns_group_range_func, table,
+		write, buffer, lenp, ppos);
+}
+#endif
+
 static struct ctl_table kern_table[] = {
 	{
 		.procname	= "panic",
@@ -1623,6 +1644,15 @@ static struct ctl_table kern_table[] = {
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec,
 	},
+#ifdef CONFIG_USER_NS
+	{
+		.procname	= "userns_group_range",
+		.data = &init_user_ns.group_range.range,
+		.maxlen		= sizeof(init_user_ns.group_range.range),
+		.mode		= 0644,
+		.proc_handler	= userns_group_range,
+	},
+#endif
 #ifdef CONFIG_PROC_SYSCTL
 	{
 		.procname	= "tainted",

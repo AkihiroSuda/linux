@@ -11,6 +11,10 @@
 #include <linux/sysctl.h>
 #include <linux/err.h>
 
+#ifdef CONFIG_SYSCTL
+#include <linux/group_range.h>
+#endif
+
 #define UID_GID_MAP_MAX_BASE_EXTENTS 5
 #define UID_GID_MAP_MAX_EXTENTS 340
 
@@ -98,6 +102,7 @@ struct user_namespace {
 #ifdef CONFIG_SYSCTL
 	struct ctl_table_set	set;
 	struct ctl_table_header *sysctls;
+	struct group_range group_range;
 #endif
 	struct ucounts		*ucounts;
 	long ucount_max[UCOUNT_COUNTS];

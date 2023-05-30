@@ -20,6 +20,10 @@
 #include <linux/user_namespace.h>
 #include <linux/proc_ns.h>
 
+#ifdef CONFIG_SYSCTL
+#include <linux/group_range.h>
+#endif
+
 /*
  * userns count is 1 for root user, 1 for init_uts_ns,
  * and 1 for... ?
@@ -66,6 +70,11 @@ struct user_namespace init_user_ns = {
 #ifdef CONFIG_KEYS
 	.keyring_name_list = LIST_HEAD_INIT(init_user_ns.keyring_name_list),
 	.keyring_sem = __RWSEM_INITIALIZER(init_user_ns.keyring_sem),
+#endif
+#ifdef CONFIG_SYSCTL
+	.group_range = {
+		.range = {0, ((gid_t)~0U) - 1},
+	},
 #endif
 };
 EXPORT_SYMBOL_GPL(init_user_ns);

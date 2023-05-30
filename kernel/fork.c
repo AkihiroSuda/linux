@@ -111,6 +111,10 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/task.h>
 
+#ifdef CONFIG_USER_NS
+#include <linux/group_range.h>
+#endif
+
 /*
  * Minimum number of threads to boot the kernel
  */
@@ -2235,6 +2239,16 @@ static void rv_task_fork(struct task_struct *p)
 #define rv_task_fork(p) do {} while (0)
 #endif
 
+#ifdef CONFIG_USER_NS
+static bool userns_clone_is_allowed(void)
+{
+	if (capable(CAP_SYS_ADMIN))
+		return true;
+
+	return check_current_group_range(&current_user_ns()->group_range);
+}
+#endif
+
 /*
  * This creates a new process as a copy of the old one,
  * but does not actually start it yet.
@@ -2265,6 +2279,11 @@ __latent_entropy struct task_struct *copy_process(
 
 	if ((clone_flags & (CLONE_NEWUSER|CLONE_FS)) == (CLONE_NEWUSER|CLONE_FS))
 		return ERR_PTR(-EINVAL);
+
+#ifdef CONFIG_USER_NS
+	if ((clone_flags & CLONE_NEWUSER) && !userns_clone_is_allowed())
+		return ERR_PTR(-EPERM);
+#endif
 
 	/*
 	 * Thread groups must share signals as well, and detached threads
@@ -3339,6 +3358,11 @@ static int check_unshare_flags(unsigned long unshare_flags)
 		if (!current_is_single_threaded())
 			return -EINVAL;
 	}
+
+#ifdef CONFIG_USER_NS
+	if ((unshare_flags & CLONE_NEWUSER) && !userns_clone_is_allowed())
+		return -EPERM;
+#endif
 
 	return 0;
 }
