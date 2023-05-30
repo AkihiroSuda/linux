@@ -5,12 +5,6 @@
 #include <linux/seqlock.h>
 #include <linux/uidgid.h>
 
-/*
- * gid_t is either uint or ushort.  We want to pass it to
- * proc_dointvec_minmax(), so it must not be larger than MAX_INT
- */
-#define GROUP_RANGE_MAX (((gid_t)~0U) >> 1)
-
 struct group_range {
 	seqlock_t       lock;
 	kgid_t          range[2];
